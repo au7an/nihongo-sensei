@@ -1,0 +1,1256 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日本語先生 — Nihongo Sensei</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&family=Noto+Sans+JP:wght@300;400;700&family=DM+Serif+Display:ital@0;1&family=DM+Mono&display=swap" rel="stylesheet">
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<style>
+  :root {
+    --ink: #1a1108;
+    --paper: #faf6ef;
+    --paper2: #f2ebe0;
+    --red: #c0392b;
+    --gold: #c8922a;
+    --green: #2e7d52;
+    --blue: #2c5f8a;
+    --muted: #8a7f72;
+    --border: #d9cfc2;
+    --shadow: rgba(26,17,8,0.12);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: var(--paper);
+    color: var(--ink);
+    min-height: 100vh;
+  }
+
+  /* SYNC BAR */
+  .sync-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .sync-status {
+    font-size: 0.72rem; padding: 3px 10px; border-radius: 20px; font-weight: 500; letter-spacing: .04em;
+  }
+  .sync-status.idle    { background: rgba(255,255,255,.1); color: #aaa; }
+  .sync-status.syncing { background: #fff3cd; color: #856404; }
+  .sync-status.saved   { background: #d1f0da; color: #1a6b35; }
+  .sync-status.error   { background: #fde8e8; color: #9b1c1c; }
+  .btn-gdrive {
+    display: flex; align-items: center; gap: 5px;
+    padding: 5px 12px; border: 1.5px solid rgba(255,255,255,.3); border-radius: 6px;
+    background: rgba(255,255,255,.1); color: white; font-family: inherit;
+    font-size: 0.78rem; font-weight: 500; cursor: pointer; transition: all .15s;
+  }
+  .btn-gdrive:hover { background: rgba(255,255,255,.2); }
+  .btn-gdrive img { width: 14px; height: 14px; }
+  .btn-sync-small {
+    padding: 4px 10px; border: 1px solid rgba(255,255,255,.3); border-radius: 5px;
+    background: transparent; color: rgba(255,255,255,.7); font-family: inherit;
+    font-size: 0.75rem; cursor: pointer; transition: all .15s;
+  }
+  .btn-sync-small:hover { background: rgba(255,255,255,.15); color: white; }
+  .toast {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--ink); color: var(--paper);
+    padding: 10px 20px; border-radius: 8px; font-size: 0.85rem;
+    transition: transform .3s ease; z-index: 9999; white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* HEADER */
+  header {
+    background: var(--ink);
+    color: var(--paper);
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 16px var(--shadow);
+  }
+  .logo {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.5rem;
+    letter-spacing: 0.01em;
+  }
+  .logo span { color: var(--gold); }
+  .progress-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.8rem;
+    color: var(--muted);
+  }
+  .progress-bar {
+    width: 160px;
+    height: 6px;
+    background: #3a3028;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: var(--gold);
+    border-radius: 3px;
+    transition: width 0.5s ease;
+  }
+
+  /* LAYOUT */
+  .app { display: flex; min-height: calc(100vh - 60px); }
+
+  /* SIDEBAR */
+  .sidebar {
+    width: 240px;
+    min-height: 100%;
+    background: var(--ink);
+    padding: 24px 0;
+    flex-shrink: 0;
+  }
+  .sidebar-section {
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 16px 20px 6px;
+  }
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 20px;
+    color: #c9b99a;
+    font-size: 0.88rem;
+    cursor: pointer;
+    border-left: 3px solid transparent;
+    transition: all 0.2s;
+  }
+  .sidebar-item:hover { background: rgba(255,255,255,0.05); color: var(--paper); }
+  .sidebar-item.active { border-left-color: var(--gold); background: rgba(200,146,42,0.12); color: var(--gold); }
+  .sidebar-item.locked { opacity: 0.35; cursor: not-allowed; }
+  .sidebar-item .badge {
+    margin-left: auto;
+    background: var(--green);
+    color: white;
+    font-size: 0.6rem;
+    padding: 1px 6px;
+    border-radius: 10px;
+    font-weight: 700;
+  }
+  .sidebar-item .badge.fail { background: var(--red); }
+
+  /* MAIN CONTENT */
+  .main { flex: 1; padding: 32px; max-width: 780px; }
+
+  .screen { display: none; }
+  .screen.active { display: block; animation: fadeIn 0.3s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* CARD */
+  .card {
+    background: white;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 12px var(--shadow);
+    padding: 28px 32px;
+    margin-bottom: 20px;
+  }
+  .card-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.6rem;
+    margin-bottom: 6px;
+  }
+  .card-sub {
+    font-size: 0.82rem;
+    color: var(--muted);
+    margin-bottom: 20px;
+  }
+  .tag {
+    display: inline-block;
+    background: var(--paper2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 2px 10px;
+    margin-right: 6px;
+    margin-bottom: 12px;
+  }
+  .tag.jlpt { background: #e8f0f8; border-color: #b3c8de; color: var(--blue); }
+  .tag.vocab { background: #e8f4ee; border-color: #aed6be; color: var(--green); }
+  .tag.kanji { background: #fdf0e0; border-color: #e8c87a; color: var(--gold); }
+
+  /* VOCAB TABLE */
+  .vocab-table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+  .vocab-table th {
+    text-align: left;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+    border-bottom: 2px solid var(--border);
+    padding: 6px 10px;
+  }
+  .vocab-table td { padding: 10px 10px; border-bottom: 1px solid var(--border); font-size: 0.92rem; }
+  .vocab-table tr:last-child td { border-bottom: none; }
+  .jp { font-family: 'Noto Serif JP', serif; font-size: 1.1rem; }
+  .reading { font-size: 0.78rem; color: var(--muted); display: block; }
+  .vocab-table tr:hover td { background: var(--paper); }
+  .example { font-size: 0.78rem; color: var(--blue); font-style: italic; }
+
+  /* KANJI GRID */
+  .kanji-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; margin-top: 12px; }
+  .kanji-card {
+    background: var(--paper);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 12px;
+    text-align: center;
+    cursor: default;
+    transition: box-shadow 0.2s;
+  }
+  .kanji-card:hover { box-shadow: 0 4px 12px var(--shadow); }
+  .kanji-char { font-family: 'Noto Serif JP', serif; font-size: 2.4rem; line-height: 1; color: var(--ink); }
+  .kanji-on { font-size: 0.72rem; color: var(--blue); margin-top: 4px; }
+  .kanji-kun { font-size: 0.72rem; color: var(--green); }
+  .kanji-mean { font-size: 0.78rem; font-weight: 700; margin-top: 4px; color: var(--muted); }
+
+  /* GRAMMAR SECTION */
+  .grammar-block {
+    background: var(--paper2);
+    border-left: 4px solid var(--gold);
+    border-radius: 0 8px 8px 0;
+    padding: 16px 20px;
+    margin: 14px 0;
+  }
+  .grammar-pattern { font-family: 'DM Mono', monospace; font-size: 1rem; color: var(--ink); margin-bottom: 6px; }
+  .grammar-desc { font-size: 0.85rem; color: var(--muted); margin-bottom: 8px; }
+  .grammar-ex { font-family: 'Noto Serif JP', serif; font-size: 1rem; }
+  .grammar-trans { font-size: 0.8rem; color: var(--muted); margin-top: 2px; }
+
+  /* BTN */
+  .btn {
+    display: inline-block;
+    padding: 11px 26px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+    font-family: 'Noto Sans JP', sans-serif;
+  }
+  .btn-primary { background: var(--ink); color: var(--paper); }
+  .btn-primary:hover { background: #2e2210; }
+  .btn-gold { background: var(--gold); color: white; }
+  .btn-gold:hover { background: #b07e22; }
+  .btn-outline { background: transparent; border: 2px solid var(--border); color: var(--ink); }
+  .btn-outline:hover { border-color: var(--gold); color: var(--gold); }
+  .btn-danger { background: var(--red); color: white; }
+
+  /* QUIZ */
+  .quiz-question {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.3rem;
+    margin-bottom: 8px;
+  }
+  .quiz-jp { font-family: 'Noto Serif JP', serif; font-size: 2rem; text-align: center; margin: 20px 0; color: var(--ink); }
+  .quiz-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 16px; }
+  .quiz-option {
+    padding: 14px 18px;
+    border-radius: 8px;
+    border: 2px solid var(--border);
+    background: white;
+    font-size: 0.92rem;
+    cursor: pointer;
+    transition: all 0.18s;
+    text-align: left;
+  }
+  .quiz-option:hover:not(.answered) { border-color: var(--gold); background: #fdf7ee; }
+  .quiz-option.correct { border-color: var(--green); background: #e8f4ee; color: var(--green); font-weight: 700; }
+  .quiz-option.wrong { border-color: var(--red); background: #fdecea; color: var(--red); }
+  .quiz-option.reveal-correct { border-color: var(--green); background: #e8f4ee; color: var(--green); }
+
+  .quiz-counter { font-size: 0.8rem; color: var(--muted); margin-bottom: 8px; }
+  .quiz-progress { height: 4px; background: var(--paper2); border-radius: 2px; margin-bottom: 20px; }
+  .quiz-progress-fill { height: 100%; background: var(--gold); border-radius: 2px; transition: width 0.3s; }
+
+  /* RESULT */
+  .result-score {
+    text-align: center;
+    font-family: 'DM Serif Display', serif;
+    font-size: 4rem;
+    margin: 20px 0 8px;
+  }
+  .result-score.pass { color: var(--green); }
+  .result-score.fail { color: var(--red); }
+  .result-label { text-align: center; font-size: 1.1rem; margin-bottom: 24px; }
+  .result-breakdown { display: flex; justify-content: center; gap: 32px; margin: 20px 0; }
+  .result-stat { text-align: center; }
+  .result-stat .num { font-family: 'DM Serif Display', serif; font-size: 1.8rem; }
+  .result-stat .lbl { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+
+  /* HOME */
+  .home-hero {
+    background: var(--ink);
+    color: var(--paper);
+    border-radius: 14px;
+    padding: 36px 36px;
+    margin-bottom: 24px;
+    position: relative;
+    overflow: hidden;
+  }
+  .home-hero::before {
+    content: '日';
+    position: absolute;
+    right: 24px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-family: 'Noto Serif JP', serif;
+    font-size: 9rem;
+    color: rgba(200,146,42,0.12);
+    line-height: 1;
+    pointer-events: none;
+  }
+  .home-hero h1 { font-family: 'DM Serif Display', serif; font-size: 2rem; margin-bottom: 8px; }
+  .home-hero p { font-size: 0.9rem; color: #c9b99a; max-width: 420px; line-height: 1.7; }
+  .home-hero .target { display: inline-block; background: var(--gold); color: white; border-radius: 20px; padding: 3px 14px; font-size: 0.78rem; font-weight: 700; margin-top: 14px; }
+
+  .unit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .unit-card {
+    background: white;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .unit-card:hover:not(.locked-card) { border-color: var(--gold); box-shadow: 0 4px 16px var(--shadow); transform: translateY(-2px); }
+  .unit-card.locked-card { opacity: 0.5; cursor: not-allowed; }
+  .unit-card .unit-num { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .unit-card .unit-title { font-family: 'DM Serif Display', serif; font-size: 1.1rem; margin-bottom: 4px; }
+  .unit-card .unit-desc { font-size: 0.78rem; color: var(--muted); }
+  .unit-card .unit-status { position: absolute; top: 12px; right: 14px; font-size: 1rem; }
+
+  .tip-box {
+    background: #fff8e6;
+    border: 1px solid #e8c87a;
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 0.83rem;
+    color: #7a5c1e;
+    margin: 16px 0;
+    display: flex;
+    gap: 10px;
+    align-items: flex-start;
+  }
+
+  /* AI Chat */
+  .chat-box {
+    background: var(--paper2);
+    border-radius: 10px;
+    padding: 16px;
+    min-height: 60px;
+    margin: 12px 0;
+    font-size: 0.9rem;
+    line-height: 1.7;
+  }
+  .chat-thinking { color: var(--muted); font-style: italic; }
+
+  .loading-dots::after {
+    content: '';
+    animation: dots 1.2s steps(4, end) infinite;
+  }
+  @keyframes dots {
+    0%, 20% { content: ''; }
+    40% { content: '.'; }
+    60% { content: '..'; }
+    80%, 100% { content: '...'; }
+  }
+
+  @media (max-width: 640px) {
+    .sidebar { display: none; }
+    .main { padding: 16px; }
+    .unit-grid { grid-template-columns: 1fr; }
+    .quiz-options { grid-template-columns: 1fr; }
+    header { padding: 14px 16px; }
+    .progress-bar-wrap { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">日本語 <span>Sensei</span></div>
+  <div class="progress-bar-wrap">
+    <span id="progressLabel">0 / 6 Unit</span>
+    <div class="progress-bar"><div class="progress-fill" id="globalProgress" style="width:0%"></div></div>
+  </div>
+  <div class="sync-bar">
+    <span class="sync-status idle" id="sync-status">● Belum login</span>
+    <button class="btn-gdrive" id="gdrive-btn" onclick="handleAuthClick()">
+      <img src="https://www.gstatic.com/images/branding/product/1x/drive_2020q4_32dp.png" alt="Drive">
+      Login Drive
+    </button>
+    <button class="btn-sync-small" id="save-btn" onclick="saveToGDrive()" style="display:none">💾 Simpan</button>
+    <button class="btn-sync-small" id="logout-btn" onclick="handleSignOut()" style="display:none">Logout</button>
+  </div>
+</header>
+<div class="toast" id="toast"></div>
+
+<div class="app">
+  <nav class="sidebar" id="sidebar">
+    <div class="sidebar-section">Kurikulum</div>
+    <div class="sidebar-item active" onclick="goScreen('home')">🏠 Dashboard</div>
+    <div class="sidebar-section">Unit Belajar</div>
+    <div class="sidebar-item" id="nav-u1" onclick="startUnit(1)">① Katakana Dasar</div>
+    <div class="sidebar-item locked" id="nav-u2" onclick="startUnit(2)">② Kosakata Harian</div>
+    <div class="sidebar-item locked" id="nav-u3" onclick="startUnit(3)">③ Kanji N5 Part 1</div>
+    <div class="sidebar-item locked" id="nav-u4" onclick="startUnit(4)">④ Tata Bahasa N5</div>
+    <div class="sidebar-item locked" id="nav-u5" onclick="startUnit(5)">⑤ Kosakata Kerja</div>
+    <div class="sidebar-item locked" id="nav-u6" onclick="startUnit(6)">⑥ Kanji N5 Part 2</div>
+    <div class="sidebar-section">AI Sensei</div>
+    <div class="sidebar-item" onclick="goScreen('ask')">💬 Tanya Sensei</div>
+  </nav>
+
+  <main class="main">
+
+    <!-- HOME -->
+    <div class="screen active" id="screen-home">
+      <div class="home-hero">
+        <h1>Selamat datang kembali! 👋</h1>
+        <p>Target kamu: <strong>JFT-Basic mid-2027</strong>. Dengan 30–60 menit/hari, kita bisa capai itu! Mulai dari katakana, lalu kosakata, kanji, dan tata bahasa.</p>
+        <span class="target">🎯 JFT-Basic · Juli 2027</span>
+      </div>
+      <div class="tip-box">💡 <span><strong>Tips Hari Ini:</strong> Katakana sangat penting untuk JFT! Banyak soal tes menggunakan kata serapan (gairaigo) yang ditulis katakana. Kuasai ini dulu ya.</span></div>
+      <h2 style="font-family:'DM Serif Display',serif;font-size:1.3rem;margin-bottom:14px;">Unit Pelajaran</h2>
+      <div class="unit-grid" id="unitGrid">
+        <!-- generated by JS -->
+      </div>
+    </div>
+
+    <!-- LESSON -->
+    <div class="screen" id="screen-lesson">
+      <div id="lessonContent"></div>
+      <div style="margin-top:24px;display:flex;gap:12px;flex-wrap:wrap;">
+        <button class="btn btn-gold" onclick="startQuiz()">Mulai Kuis →</button>
+        <button class="btn btn-outline" onclick="goScreen('home')">Kembali ke Dashboard</button>
+      </div>
+    </div>
+
+    <!-- QUIZ -->
+    <div class="screen" id="screen-quiz">
+      <div class="card">
+        <div class="quiz-counter" id="quizCounter"></div>
+        <div class="quiz-progress"><div class="quiz-progress-fill" id="quizProgFill"></div></div>
+        <div class="quiz-question" id="quizQuestion"></div>
+        <div class="quiz-jp" id="quizJp"></div>
+        <div class="quiz-options" id="quizOptions"></div>
+        <div id="quizFeedback" style="margin-top:14px;font-size:0.88rem;min-height:24px;"></div>
+        <button class="btn btn-primary" id="nextBtn" style="margin-top:18px;display:none;" onclick="nextQuestion()">Soal Berikutnya →</button>
+      </div>
+    </div>
+
+    <!-- RESULT -->
+    <div class="screen" id="screen-result">
+      <div class="card" style="text-align:center;">
+        <div id="resultEmoji" style="font-size:3rem;margin-bottom:8px;"></div>
+        <div class="result-score" id="resultScore"></div>
+        <div class="result-label" id="resultLabel"></div>
+        <div class="result-breakdown">
+          <div class="result-stat"><div class="num" id="resCorrect"></div><div class="lbl">Benar</div></div>
+          <div class="result-stat"><div class="num" id="resTotal"></div><div class="lbl">Total Soal</div></div>
+          <div class="result-stat"><div class="num" id="resScore"></div><div class="lbl">Nilai</div></div>
+        </div>
+        <div id="resultMessage" style="font-size:0.88rem;color:var(--muted);max-width:400px;margin:0 auto 24px;line-height:1.7;"></div>
+        <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+          <button class="btn btn-gold" id="resultActionBtn"></button>
+          <button class="btn btn-outline" onclick="goScreen('home')">Dashboard</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ASK AI -->
+    <div class="screen" id="screen-ask">
+      <div class="card">
+        <div class="card-title">💬 Tanya Sensei</div>
+        <div class="card-sub">Tanya apa saja tentang bahasa Jepang! Sensei siap membantu.</div>
+        <textarea id="askInput" rows="3" style="width:100%;padding:12px;border-radius:8px;border:1.5px solid var(--border);font-family:inherit;font-size:0.9rem;resize:vertical;" placeholder="Contoh: Apa bedanya は dan が? Atau: Gimana cara baca kanji 人?"></textarea>
+        <button class="btn btn-primary" style="margin-top:10px;" onclick="askSensei()">Tanya →</button>
+        <div class="chat-box" id="chatBox" style="display:none;"></div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+// ===== DATA =====
+const UNITS = [
+  {
+    id: 1,
+    title: "Katakana Dasar",
+    desc: "Baris A, Ka, Sa, Ta, Na",
+    emoji: "🔤",
+    type: "katakana",
+    lesson: buildKatakanaLesson,
+    quiz: buildKatakanaQuiz,
+  },
+  {
+    id: 2,
+    title: "Kosakata Harian N5",
+    desc: "30 kata penting untuk kehidupan sehari-hari",
+    emoji: "📖",
+    type: "vocab",
+    lesson: buildVocabLesson,
+    quiz: buildVocabQuiz,
+  },
+  {
+    id: 3,
+    title: "Kanji N5 Part 1",
+    desc: "Kanji dasar: orang, hari, bulan, tahun, besar, kecil",
+    emoji: "漢",
+    type: "kanji",
+    lesson: buildKanjiLesson,
+    quiz: buildKanjiQuiz,
+  },
+  {
+    id: 4,
+    title: "Tata Bahasa N5",
+    desc: "Pola kalimat dasar: は、が、を、に",
+    emoji: "📝",
+    type: "grammar",
+    lesson: buildGrammarLesson,
+    quiz: buildGrammarQuiz,
+  },
+  {
+    id: 5,
+    title: "Kosakata Kerja/Karir",
+    desc: "Kata-kata penting untuk lingkungan kerja",
+    emoji: "💼",
+    type: "vocab2",
+    lesson: buildVocab2Lesson,
+    quiz: buildVocab2Quiz,
+  },
+  {
+    id: 6,
+    title: "Kanji N5 Part 2",
+    desc: "Kanji angka, arah, dan waktu",
+    emoji: "🔢",
+    type: "kanji2",
+    lesson: buildKanji2Lesson,
+    quiz: buildKanji2Quiz,
+  },
+];
+
+const state = {
+  completedUnits: JSON.parse(localStorage.getItem('nihongo_completed') || '[]'),
+  scores: JSON.parse(localStorage.getItem('nihongo_scores') || '{}'),
+  currentUnit: null,
+  quiz: { questions: [], current: 0, correct: 0, answers: [] },
+};
+
+const CLIENT_ID = '757904873096-sg2k9iht38dbuc9qm1etg083m76mns4u.apps.googleusercontent.com';
+const SCOPES = 'https://www.googleapis.com/auth/drive.appdata';
+const FILE_NAME = 'nihongo_sensei_progress.json';
+let tokenClient = null;
+let accessToken = null;
+let driveFileId = null;
+let saveTimer = null;
+
+function saveState() {
+  localStorage.setItem('nihongo_completed', JSON.stringify(state.completedUnits));
+  localStorage.setItem('nihongo_scores', JSON.stringify(state.scores));
+  scheduleSave();
+}
+
+// ===== GOOGLE AUTH =====
+window.addEventListener('load', function() {
+  google.accounts.id.initialize({ client_id: CLIENT_ID, callback: () => {} });
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CLIENT_ID,
+    scope: SCOPES,
+    callback: async (resp) => {
+      if (resp.error) { setSyncStatus('error', '● Login gagal'); showToast('Login gagal: ' + resp.error); return; }
+      accessToken = resp.access_token;
+      setSyncStatus('syncing', '● Memuat...');
+      document.getElementById('gdrive-btn').style.display = 'none';
+      document.getElementById('save-btn').style.display = '';
+      document.getElementById('logout-btn').style.display = '';
+      await loadFromGDrive();
+    }
+  });
+});
+
+function handleAuthClick() { tokenClient.requestAccessToken({ prompt: 'consent' }); }
+
+function handleSignOut() {
+  google.accounts.oauth2.revoke(accessToken, () => {
+    accessToken = null; driveFileId = null;
+    setSyncStatus('idle', '● Belum login');
+    document.getElementById('gdrive-btn').style.display = '';
+    document.getElementById('save-btn').style.display = 'none';
+    document.getElementById('logout-btn').style.display = 'none';
+    showToast('Berhasil logout');
+  });
+}
+
+function setSyncStatus(cls, text) {
+  const el = document.getElementById('sync-status');
+  el.className = 'sync-status ' + cls;
+  el.textContent = text;
+}
+
+async function loadFromGDrive() {
+  try {
+    const res = await fetch(
+      `https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=name='${FILE_NAME}'&fields=files(id,name)`,
+      { headers: { Authorization: 'Bearer ' + accessToken } }
+    );
+    const data = await res.json();
+    if (data.files && data.files.length > 0) {
+      driveFileId = data.files[0].id;
+      const fileRes = await fetch(
+        `https://www.googleapis.com/drive/v3/files/${driveFileId}?alt=media`,
+        { headers: { Authorization: 'Bearer ' + accessToken } }
+      );
+      const progress = await fileRes.json();
+      state.completedUnits = progress.completedUnits || [];
+      state.scores = progress.scores || {};
+      localStorage.setItem('nihongo_completed', JSON.stringify(state.completedUnits));
+      localStorage.setItem('nihongo_scores', JSON.stringify(state.scores));
+      setSyncStatus('saved', '● Tersinkron ✓');
+      showToast('Progress dimuat dari Google Drive!');
+      renderHome();
+    } else {
+      setSyncStatus('saved', '● Terhubung ✓');
+      showToast('Terhubung! Belum ada progress tersimpan.');
+    }
+  } catch(e) {
+    setSyncStatus('error', '● Gagal memuat');
+    showToast('Gagal memuat: ' + e.message);
+  }
+}
+
+async function saveToGDrive() {
+  if (!accessToken) { showToast('Login dulu ke Google Drive!'); return; }
+  setSyncStatus('syncing', '● Menyimpan...');
+  const payload = JSON.stringify({ completedUnits: state.completedUnits, scores: state.scores, savedAt: new Date().toISOString() });
+  try {
+    if (driveFileId) {
+      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`, {
+        method: 'PATCH',
+        headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+        body: payload
+      });
+    } else {
+      const meta = await fetch('https://www.googleapis.com/drive/v3/files?fields=id', {
+        method: 'POST',
+        headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: FILE_NAME, parents: ['appDataFolder'] })
+      });
+      const metaData = await meta.json();
+      driveFileId = metaData.id;
+      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${driveFileId}?uploadType=media`, {
+        method: 'PATCH',
+        headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' },
+        body: payload
+      });
+    }
+    setSyncStatus('saved', '● Tersimpan ✓');
+    showToast('Progress tersimpan ke Google Drive!');
+  } catch(e) {
+    setSyncStatus('error', '● Gagal simpan');
+    showToast('Gagal simpan: ' + e.message);
+  }
+}
+
+function scheduleSave() {
+  if (!accessToken) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => saveToGDrive(), 2000);
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ===== NAV =====
+function goScreen(name) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById('screen-' + name).classList.add('active');
+  updateSidebarActive(name);
+}
+
+function updateSidebarActive(name) {
+  document.querySelectorAll('.sidebar-item').forEach(el => el.classList.remove('active'));
+}
+
+function renderHome() {
+  const grid = document.getElementById('unitGrid');
+  grid.innerHTML = '';
+  UNITS.forEach((u, i) => {
+    const unlocked = i === 0 || state.completedUnits.includes(i); // prev unit completed
+    const done = state.completedUnits.includes(u.id);
+    const score = state.scores[u.id];
+    let statusIcon = '';
+    if (done && score >= 80) statusIcon = '✅';
+    else if (done && score < 80) statusIcon = '🔁';
+    else if (!unlocked) statusIcon = '🔒';
+    const card = document.createElement('div');
+    card.className = 'unit-card' + (!unlocked ? ' locked-card' : '');
+    card.innerHTML = `
+      <div class="unit-num">Unit ${u.id}</div>
+      <div class="unit-title">${u.emoji} ${u.title}</div>
+      <div class="unit-desc">${u.desc}</div>
+      ${score !== undefined ? `<div style="font-size:0.75rem;color:var(--muted);margin-top:6px;">Nilai terakhir: <strong>${score}%</strong></div>` : ''}
+      <div class="unit-status">${statusIcon}</div>
+    `;
+    if (unlocked) card.onclick = () => startUnit(u.id);
+    grid.appendChild(card);
+  });
+
+  // Update sidebar
+  UNITS.forEach((u, i) => {
+    const el = document.getElementById('nav-u' + u.id);
+    if (!el) return;
+    const unlocked = i === 0 || state.completedUnits.includes(i);
+    const score = state.scores[u.id];
+    el.className = 'sidebar-item' + (!unlocked ? ' locked' : '');
+    const badge = score !== undefined ? `<span class="badge ${score < 80 ? 'fail' : ''}">${score}%</span>` : '';
+    el.innerHTML = el.innerHTML.replace(/<span class="badge.*<\/span>/g, '') + badge;
+  });
+
+  // Global progress
+  const done = state.completedUnits.filter(id => state.scores[id] >= 80).length;
+  const pct = Math.round(done / UNITS.length * 100);
+  document.getElementById('globalProgress').style.width = pct + '%';
+  document.getElementById('progressLabel').textContent = `${done} / ${UNITS.length} Unit`;
+}
+
+// ===== UNIT / LESSON =====
+function startUnit(id) {
+  const u = UNITS.find(u => u.id === id);
+  if (!u) return;
+  // Check unlock
+  const idx = UNITS.indexOf(u);
+  const unlocked = idx === 0 || state.completedUnits.includes(idx);
+  if (!unlocked) return;
+
+  state.currentUnit = u;
+  document.getElementById('lessonContent').innerHTML = u.lesson();
+  goScreen('lesson');
+}
+
+function startQuiz() {
+  const u = state.currentUnit;
+  const questions = u.quiz();
+  // Shuffle
+  const shuffled = questions.sort(() => Math.random() - 0.5).slice(0, 10);
+  state.quiz = { questions: shuffled, current: 0, correct: 0 };
+  goScreen('quiz');
+  renderQuestion();
+}
+
+// ===== QUIZ ENGINE =====
+function renderQuestion() {
+  const { questions, current } = state.quiz;
+  const q = questions[current];
+  const total = questions.length;
+
+  document.getElementById('quizCounter').textContent = `Soal ${current + 1} dari ${total}`;
+  document.getElementById('quizProgFill').style.width = (current / total * 100) + '%';
+  document.getElementById('quizQuestion').textContent = q.question;
+  document.getElementById('quizJp').textContent = q.prompt || '';
+  document.getElementById('quizFeedback').textContent = '';
+  document.getElementById('nextBtn').style.display = 'none';
+
+  const optEl = document.getElementById('quizOptions');
+  optEl.innerHTML = '';
+  const opts = [...q.options].sort(() => Math.random() - 0.5);
+  opts.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.className = 'quiz-option';
+    btn.textContent = opt;
+    btn.onclick = () => answerQuestion(opt, q.answer, btn);
+    optEl.appendChild(btn);
+  });
+}
+
+function answerQuestion(chosen, correct, btn) {
+  // Disable all
+  document.querySelectorAll('.quiz-option').forEach(b => {
+    b.classList.add('answered');
+    b.onclick = null;
+    if (b.textContent === correct) b.classList.add('reveal-correct');
+  });
+
+  if (chosen === correct) {
+    btn.classList.add('correct');
+    state.quiz.correct++;
+    document.getElementById('quizFeedback').innerHTML = '✅ <strong>Benar!</strong> ' + (state.quiz.questions[state.quiz.current].explanation || '');
+    document.getElementById('quizFeedback').style.color = 'var(--green)';
+  } else {
+    btn.classList.remove('reveal-correct');
+    btn.classList.add('wrong');
+    document.getElementById('quizFeedback').innerHTML = `❌ Salah. Jawaban benar: <strong>${correct}</strong>. ` + (state.quiz.questions[state.quiz.current].explanation || '');
+    document.getElementById('quizFeedback').style.color = 'var(--red)';
+  }
+  document.getElementById('nextBtn').style.display = 'inline-block';
+}
+
+function nextQuestion() {
+  state.quiz.current++;
+  if (state.quiz.current >= state.quiz.questions.length) {
+    showResult();
+  } else {
+    renderQuestion();
+  }
+}
+
+function showResult() {
+  const { correct, questions } = state.quiz;
+  const total = questions.length;
+  const pct = Math.round(correct / total * 100);
+  const pass = pct >= 80;
+  const u = state.currentUnit;
+
+  // Record score
+  state.scores[u.id] = pct;
+  if (pass && !state.completedUnits.includes(u.id)) {
+    state.completedUnits.push(u.id);
+  }
+  saveState();
+  renderHome();
+
+  document.getElementById('resultEmoji').textContent = pass ? '🎉' : '😅';
+  document.getElementById('resultScore').textContent = pct + '%';
+  document.getElementById('resultScore').className = 'result-score ' + (pass ? 'pass' : 'fail');
+  document.getElementById('resultLabel').textContent = pass ? 'Lulus! Hebat sekali! 🌸' : 'Belum lulus. Yuk coba lagi!';
+  document.getElementById('resCorrect').textContent = correct;
+  document.getElementById('resTotal').textContent = total;
+  document.getElementById('resScore').textContent = pct + '%';
+
+  let msg = '';
+  if (pass) {
+    msg = `Kamu berhasil melewati Unit ${u.id}! ${u.id < UNITS.length ? 'Unit berikutnya sudah terbuka.' : 'Kamu telah menyelesaikan semua unit!'} Terus semangat menuju JFT-Basic! 🇯🇵`;
+  } else {
+    msg = `Nilai minimal untuk lulus adalah 80%. Kamu mendapat ${pct}%. Jangan menyerah! Mari pelajari lagi materinya dan coba kembali.`;
+  }
+  document.getElementById('resultMessage').textContent = msg;
+
+  const btn = document.getElementById('resultActionBtn');
+  if (pass) {
+    btn.textContent = 'Unit Selanjutnya →';
+    btn.onclick = () => {
+      const next = UNITS.find(uu => uu.id === u.id + 1);
+      if (next) startUnit(next.id);
+      else goScreen('home');
+    };
+  } else {
+    btn.textContent = '🔁 Pelajari Ulang';
+    btn.onclick = () => startUnit(u.id);
+  }
+
+  goScreen('result');
+}
+
+// ===== LESSON BUILDERS =====
+
+function buildKatakanaLesson() {
+  return `
+    <div class="card">
+      <span class="tag jlpt">JFT</span><span class="tag">Katakana</span>
+      <div class="card-title">Unit 1: Katakana Dasar</div>
+      <div class="card-sub">Kuasai baris A, Ka, Sa, Ta, Na — fondasi katakana untuk JFT!</div>
+      <div class="tip-box">💡 <span>Katakana digunakan untuk kata serapan dari bahasa asing (gairaigo). Di JFT banyak soal menggunakan kata-kata ini! Contoh: コーヒー (koohii = kopi), テレビ (terebi = TV)</span></div>
+      <div class="vocab-table" style="display:block;">
+        <table class="vocab-table">
+          <tr><th>Katakana</th><th>Romaji</th><th>Hiragana</th><th>Ingat dengan...</th></tr>
+          <tr><td class="jp">ア</td><td>a</td><td>あ</td><td>Seperti huruf A terbalik</td></tr>
+          <tr><td class="jp">イ</td><td>i</td><td>い</td><td>Dua garis tegak = II (2 = i)</td></tr>
+          <tr><td class="jp">ウ</td><td>u</td><td>う</td><td>Mangkuk (bowl) dari atas</td></tr>
+          <tr><td class="jp">エ</td><td>e</td><td>え</td><td>Seperti tiang listrik / H</td></tr>
+          <tr><td class="jp">オ</td><td>o</td><td>お</td><td>Orang angkat tangan</td></tr>
+          <tr><td class="jp">カ</td><td>ka</td><td>か</td><td>Pisau (knife = ka...)</td></tr>
+          <tr><td class="jp">キ</td><td>ki</td><td>き</td><td>Key (kunci) = Ki</td></tr>
+          <tr><td class="jp">ク</td><td>ku</td><td>く</td><td>Paruh burung buka</td></tr>
+          <tr><td class="jp">ケ</td><td>ke</td><td>け</td><td>Seperti K = Ke</td></tr>
+          <tr><td class="jp">コ</td><td>ko</td><td>こ</td><td>Corner (sudut) = Ko</td></tr>
+          <tr><td class="jp">サ</td><td>sa</td><td>さ</td><td>Salib kecil di atas = Sa</td></tr>
+          <tr><td class="jp">シ</td><td>shi</td><td>し</td><td>Tersenyum ke kanan = Shi</td></tr>
+          <tr><td class="jp">ス</td><td>su</td><td>す</td><td>Swing (ayunan) = Su</td></tr>
+          <tr><td class="jp">セ</td><td>se</td><td>せ</td><td>Sekop tanpa dasar = Se</td></tr>
+          <tr><td class="jp">ソ</td><td>so</td><td>そ</td><td>Sow (babi betina) = So</td></tr>
+          <tr><td class="jp">タ</td><td>ta</td><td>た</td><td>Tanda tangan = Ta</td></tr>
+          <tr><td class="jp">チ</td><td>chi</td><td>ち</td><td>Cheese (keju) = Chi</td></tr>
+          <tr><td class="jp">ツ</td><td>tsu</td><td>つ</td><td>Tsunami = Tsu (3 titik)</td></tr>
+          <tr><td class="jp">テ</td><td>te</td><td>て</td><td>Tee (golf tee) = Te</td></tr>
+          <tr><td class="jp">ト</td><td>to</td><td>と</td><td>Totem pole = To</td></tr>
+          <tr><td class="jp">ナ</td><td>na</td><td>な</td><td>Knife (+ cross) = Na</td></tr>
+          <tr><td class="jp">ニ</td><td>ni</td><td>に</td><td>Knee (lutut) = Ni (2 garis)</td></tr>
+          <tr><td class="jp">ヌ</td><td>nu</td><td>ぬ</td><td>Noodle (mie) = Nu</td></tr>
+          <tr><td class="jp">ネ</td><td>ne</td><td>ね</td><td>Net (jaring) = Ne</td></tr>
+          <tr><td class="jp">ノ</td><td>no</td><td>の</td><td>Garis miring = No</td></tr>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="font-size:1.2rem;">Contoh Kata Serapan</div>
+      <table class="vocab-table">
+        <tr><th>Katakana</th><th>Romaji</th><th>Asal Kata</th><th>Arti</th></tr>
+        <tr><td class="jp">コーヒー</td><td>koohii</td><td>coffee</td><td>kopi</td></tr>
+        <tr><td class="jp">テレビ</td><td>terebi</td><td>television</td><td>televisi</td></tr>
+        <tr><td class="jp">アイスクリーム</td><td>aisukuriimu</td><td>ice cream</td><td>es krim</td></tr>
+        <tr><td class="jp">カメラ</td><td>kamera</td><td>camera</td><td>kamera</td></tr>
+        <tr><td class="jp">スーパー</td><td>suupaa</td><td>supermarket</td><td>supermarket</td></tr>
+        <tr><td class="jp">ノート</td><td>nooto</td><td>notebook</td><td>buku catatan</td></tr>
+        <tr><td class="jp">タクシー</td><td>takushii</td><td>taxi</td><td>taksi</td></tr>
+        <tr><td class="jp">ニュース</td><td>nyuusu</td><td>news</td><td>berita</td></tr>
+      </table>
+    </div>
+  `;
+}
+
+function buildVocabLesson() {
+  return `
+    <div class="card">
+      <span class="tag vocab">N5</span><span class="tag">Kosakata</span>
+      <div class="card-title">Unit 2: Kosakata Harian N5</div>
+      <div class="card-sub">30 kata yang paling sering muncul dalam kehidupan sehari-hari dan ujian JFT</div>
+      <table class="vocab-table">
+        <tr><th>Kanji/Kana</th><th>Bacaan</th><th>Arti</th><th>Contoh</th></tr>
+        <tr><td class="jp">食べる<span class="reading">たべる</span></td><td>taberu</td><td>makan</td><td class="example">ご飯を食べる (makan nasi)</td></tr>
+        <tr><td class="jp">飲む<span class="reading">のむ</span></td><td>nomu</td><td>minum</td><td class="example">水を飲む (minum air)</td></tr>
+        <tr><td class="jp">行く<span class="reading">いく</span></td><td>iku</td><td>pergi</td><td class="example">学校に行く (pergi ke sekolah)</td></tr>
+        <tr><td class="jp">来る<span class="reading">くる</span></td><td>kuru</td><td>datang</td><td class="example">友達が来る (teman datang)</td></tr>
+        <tr><td class="jp">見る<span class="reading">みる</span></td><td>miru</td><td>melihat/menonton</td><td class="example">テレビを見る (nonton TV)</td></tr>
+        <tr><td class="jp">聞く<span class="reading">きく</span></td><td>kiku</td><td>mendengar/bertanya</td><td class="example">音楽を聞く (dengar musik)</td></tr>
+        <tr><td class="jp">話す<span class="reading">はなす</span></td><td>hanasu</td><td>berbicara</td><td class="example">日本語を話す (bicara bahasa Jepang)</td></tr>
+        <tr><td class="jp">書く<span class="reading">かく</span></td><td>kaku</td><td>menulis</td><td class="example">手紙を書く (tulis surat)</td></tr>
+        <tr><td class="jp">読む<span class="reading">よむ</span></td><td>yomu</td><td>membaca</td><td class="example">本を読む (baca buku)</td></tr>
+        <tr><td class="jp">買う<span class="reading">かう</span></td><td>kau</td><td>membeli</td><td class="example">野菜を買う (beli sayur)</td></tr>
+        <tr><td class="jp">大きい<span class="reading">おおきい</span></td><td>ookii</td><td>besar</td><td class="example">大きい犬 (anjing besar)</td></tr>
+        <tr><td class="jp">小さい<span class="reading">ちいさい</span></td><td>chiisai</td><td>kecil</td><td class="example">小さい子供 (anak kecil)</td></tr>
+        <tr><td class="jp">高い<span class="reading">たかい</span></td><td>takai</td><td>mahal/tinggi</td><td class="example">高い山 (gunung tinggi)</td></tr>
+        <tr><td class="jp">安い<span class="reading">やすい</span></td><td>yasui</td><td>murah</td><td class="example">安いスーパー (supermarket murah)</td></tr>
+        <tr><td class="jp">新しい<span class="reading">あたらしい</span></td><td>atarashii</td><td>baru</td><td class="example">新しい仕事 (pekerjaan baru)</td></tr>
+        <tr><td class="jp">古い<span class="reading">ふるい</span></td><td>furui</td><td>lama/tua</td><td class="example">古い車 (mobil tua)</td></tr>
+        <tr><td class="jp">今日<span class="reading">きょう</span></td><td>kyou</td><td>hari ini</td><td class="example">今日は月曜日 (hari ini Senin)</td></tr>
+        <tr><td class="jp">明日<span class="reading">あした</span></td><td>ashita</td><td>besok</td><td class="example">明日行きます (besok pergi)</td></tr>
+        <tr><td class="jp">昨日<span class="reading">きのう</span></td><td>kinou</td><td>kemarin</td><td class="example">昨日食べた (kemarin makan)</td></tr>
+        <tr><td class="jp">仕事<span class="reading">しごと</span></td><td>shigoto</td><td>pekerjaan</td><td class="example">仕事があります (ada pekerjaan)</td></tr>
+      </table>
+    </div>
+  `;
+}
+
+function buildKanjiLesson() {
+  return `
+    <div class="card">
+      <span class="tag kanji">Kanji N5</span>
+      <div class="card-title">Unit 3: Kanji N5 Part 1</div>
+      <div class="card-sub">Hafal 12 kanji paling dasar — ini sering muncul di JFT!</div>
+      <div class="kanji-grid">
+        ${[
+          {k:'人',on:'ジン・ニン',kun:'ひと',m:'orang'},
+          {k:'日',on:'ニチ・ジツ',kun:'ひ・か',m:'hari / matahari'},
+          {k:'月',on:'ゲツ・ガツ',kun:'つき',m:'bulan'},
+          {k:'年',on:'ネン',kun:'とし',m:'tahun'},
+          {k:'大',on:'ダイ・タイ',kun:'おお',m:'besar'},
+          {k:'小',on:'ショウ',kun:'ちい・こ',m:'kecil'},
+          {k:'山',on:'サン',kun:'やま',m:'gunung'},
+          {k:'川',on:'セン',kun:'かわ',m:'sungai'},
+          {k:'木',on:'モク・ボク',kun:'き',m:'pohon/kayu'},
+          {k:'火',on:'カ',kun:'ひ',m:'api'},
+          {k:'水',on:'スイ',kun:'みず',m:'air'},
+          {k:'金',on:'キン・コン',kun:'かね・かな',m:'uang/emas'},
+        ].map(({k,on,kun,m}) => `
+          <div class="kanji-card">
+            <div class="kanji-char">${k}</div>
+            <div class="kanji-on">音: ${on}</div>
+            <div class="kanji-kun">訓: ${kun}</div>
+            <div class="kanji-mean">${m}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title" style="font-size:1.1rem;">Kata Gabungan (Kanji yang digabung)</div>
+      <table class="vocab-table">
+        <tr><th>Kanji</th><th>Bacaan</th><th>Arti</th></tr>
+        <tr><td class="jp">日本人</td><td>にほんじん (nihonjin)</td><td>orang Jepang</td></tr>
+        <tr><td class="jp">大人</td><td>おとな (otona)</td><td>orang dewasa</td></tr>
+        <tr><td class="jp">今年</td><td>ことし (kotoshi)</td><td>tahun ini</td></tr>
+        <tr><td class="jp">今日</td><td>きょう (kyou)</td><td>hari ini</td></tr>
+        <tr><td class="jp">山水</td><td>さんすい (sansui)</td><td>pemandangan alam</td></tr>
+        <tr><td class="jp">火山</td><td>かざん (kazan)</td><td>gunung berapi</td></tr>
+      </table>
+    </div>
+  `;
+}
+
+function buildGrammarLesson() {
+  return `
+    <div class="card">
+      <span class="tag jlpt">N5</span><span class="tag">Tata Bahasa</span>
+      <div class="card-title">Unit 4: Tata Bahasa N5 Dasar</div>
+      <div class="card-sub">Partikel penting: は、が、を、に、で、へ</div>
+
+      <div class="grammar-block">
+        <div class="grammar-pattern">〜は〜です (wa ~ desu)</div>
+        <div class="grammar-desc">Menyatakan sesuatu / identitas. "Ini adalah..."</div>
+        <div class="grammar-ex">わたしは田中です。</div>
+        <div class="grammar-trans">Saya adalah Tanaka.</div>
+      </div>
+
+      <div class="grammar-block">
+        <div class="grammar-pattern">〜が〜 (ga)</div>
+        <div class="grammar-desc">Subjek khusus, menekankan siapa/apa. Juga untuk kalimat ekspresi suka/bisa.</div>
+        <div class="grammar-ex">猫が好きです。</div>
+        <div class="grammar-trans">Saya suka kucing.</div>
+      </div>
+
+      <div class="grammar-block">
+        <div class="grammar-pattern">〜を〜 (wo/o)</div>
+        <div class="grammar-desc">Menandai objek langsung dari kata kerja.</div>
+        <div class="grammar-ex">ご飯を食べます。</div>
+        <div class="grammar-trans">Saya makan nasi.</div>
+      </div>
+
+      <div class="grammar-block">
+        <div class="grammar-pattern">〜に〜 (ni)</div>
+        <div class="grammar-desc">Tujuan (pergi ke~), waktu (pada jam/hari), atau keberadaan.</div>
+        <div class="grammar-ex">学校に行きます。</div>
+        <div class="grammar-trans">Saya pergi ke sekolah.</div>
+      </div>
+
+      <div class="grammar-block">
+        <div class="grammar-pattern">〜で〜 (de)</div>
+        <div class="grammar-desc">Tempat aktivitas berlangsung, atau alat yang digunakan.</div>
+        <div class="grammar-ex">バスで会社に行きます。</div>
+        <div class="grammar-trans">Saya pergi ke kantor naik bis.</div>
+      </div>
+
+      <div class="tip-box">💡 <span>Ingat: <strong>は</strong> topik (apa yang kita bicarakan), <strong>が</strong> subjek (siapa yang melakukan), <strong>を</strong> objek (apa yang dikenai tindakan). Ini kunci utama bahasa Jepang!</span></div>
+
+      <div style="margin-top:16px;">
+        <div class="card-title" style="font-size:1.1rem;">Bentuk Kalimat Lengkap</div>
+        <table class="vocab-table">
+          <tr><th>Indonesia</th><th>Jepang</th><th>Romaji</th></tr>
+          <tr><td>Saya pergi ke kantor</td><td class="jp">わたしは会社に行きます</td><td>watashi wa kaisha ni ikimasu</td></tr>
+          <tr><td>Kemarin saya makan sushi</td><td class="jp">きのうすしを食べました</td><td>kinou sushi wo tabemashita</td></tr>
+          <tr><td>Saya bisa berbicara bahasa Jepang</td><td class="jp">日本語が話せます</td><td>nihongo ga hanasemasu</td></tr>
+          <tr><td>Di mana toilet?</td><td class="jp">トイレはどこですか</td><td>toire wa doko desu ka</td></tr>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function buildVocab2Lesson() {
+  return `
+    <div class="card">
+      <span class="tag vocab">Karir</span><span class="tag jlpt">JFT</span>
+      <div class="card-title">Unit 5: Kosakata Kerja & Karir</div>
+      <div class="card-sub">Kata-kata penting untuk bekerja di Jepang — sangat relevan untuk JFT!</div>
+      <table class="vocab-table">
+        <tr><th>Kanji/Kana</th><th>Bacaan</th><th>Arti</th><th>Contoh</th></tr>
+        <tr><td class="jp">会社<span class="reading">かいしゃ</span></td><td>kaisha</td><td>perusahaan/kantor</td><td class="example">会社に勤める (bekerja di perusahaan)</td></tr>
+        <tr><td class="jp">仕事<span class="reading">しごと</span></td><td>shigoto</td><td>pekerjaan</td><td class="example">仕事を探す (cari kerja)</td></tr>
+        <tr><td class="jp">上司<span class="reading">じょうし</span></td><td>joushi</td><td>atasan/bos</td><td class="example">上司に報告する (lapor ke atasan)</td></tr>
+        <tr><td class="jp">同僚<span class="reading">どうりょう</span></td><td>douryou</td><td>rekan kerja</td><td class="example">同僚と話す (bicara dengan rekan)</td></tr>
+        <tr><td class="jp">給料<span class="reading">きゅうりょう</span></td><td>kyuuryou</td><td>gaji</td><td class="example">給料をもらう (terima gaji)</td></tr>
+        <tr><td class="jp">残業<span class="reading">ざんぎょう</span></td><td>zangyou</td><td>lembur</td><td class="example">残業します (saya lembur)</td></tr>
+        <tr><td class="jp">休憩<span class="reading">きゅうけい</span></td><td>kyuukei</td><td>istirahat</td><td class="example">休憩時間 (waktu istirahat)</td></tr>
+        <tr><td class="jp">会議<span class="reading">かいぎ</span></td><td>kaigi</td><td>rapat/meeting</td><td class="example">会議があります (ada rapat)</td></tr>
+        <tr><td class="jp">資料<span class="reading">しりょう</span></td><td>shiryou</td><td>dokumen/materi</td><td class="example">資料を作る (buat dokumen)</td></tr>
+        <tr><td class="jp">連絡<span class="reading">れんらく</span></td><td>renraku</td><td>kontak/kabar</td><td class="example">連絡してください (tolong hubungi)</td></tr>
+        <tr><td class="jp">確認<span class="reading">かくにん</span></td><td>kakunin</td><td>konfirmasi/cek</td><td class="example">確認お願いします (tolong cek)</td></tr>
+        <tr><td class="jp">申し訳ない<span class="reading">もうしわけない</span></td><td>moushiwakenai</td><td>mohon maaf (formal)</td><td class="example">申し訳ございません (saya sangat minta maaf)</td></tr>
+        <tr><td class="jp">よろしく<span class="reading">よろしく</span></td><td>yoroshiku</td><td>mohon bantuannya</td><td class="example">よろしくお願いします (sering dipakai!)</td></tr>
+        <tr><td class="jp">お疲れ様<span class="reading">おつかれさま</span></td><td>otsukaresama</td><td>kerja keras kamu (salam pulang kerja)</td><td class="example">お疲れ様でした！</td></tr>
+      </table>
+    </div>
+  `;
+}
+
+function buildKanji2Lesson() {
+  return `
+    <div class="card">
+      <span class="tag kanji">Kanji N5</span>
+      <div class="card-title">Unit 6: Kanji N5 Part 2 — Angka, Waktu & Arah</div>
+      <div class="card-sub">Kanji angka dan waktu sangat sering muncul di JFT!</div>
+      <div class="kanji-grid">
+        ${[
+          {k:'一',on:'イチ',kun:'ひと',m:'satu'},
+          {k:'二',on:'ニ',kun:'ふた',m:'dua'},
+          {k:'三',on:'サン',kun:'み',m:'tiga'},
+          {k:'四',on:'シ',kun:'よ・よん',m:'empat'},
+          {k:'五',on:'ゴ',kun:'いつ',m:'lima'},
+          {k:'六',on:'ロク',kun:'むっ',m:'enam'},
+          {k:'七',on:'シチ',kun:'なな',m:'tujuh'},
+          {k:'八',on:'ハチ',kun:'やっ',m:'delapan'},
+          {k:'九',on:'ク・キュウ',kun:'ここの',m:'sembilan'},
+          {k:'十',on:'ジュウ',kun:'とお',m:'sepuluh'},
+          {k:'百',on:'ヒャク',kun:'',m:'seratus'},
+          {k:'千',on:'セン',kun:'ち',m:'seribu'},
+          {k:'上',on:'ジョウ',kun:'うえ・のぼ',m:'atas/naik'},
+          {k:'下',on:'カ・ゲ',kun:'した・くだ',m:'bawah/turun'},
+          {k:'左',on:'サ',kun:'ひだり',m:'kiri'},
+          {k:'右',on:'ウ・ユウ',kun:'みぎ',m:'kanan'},
+          {k:'前',on:'ゼン',kun:'まえ',m:'depan/sebelum'},
+          {k:'後',on:'コウ・ゴ',kun:'うし・あと',m:'belakang/setelah'},
+        ].map(({k,on,kun,m}) => `
+          <div class="kanji-card">
+            <div class="kanji-char">${k}</div>
+            <div class="kanji-on">音: ${on}</div>
+            ${kun ? `<div class="kanji-kun">訓: ${kun}</div>` : ''}
+            <div class="kanji-mean">${m}</div>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+// ===== QUIZ BUILDERS =====
+function buildKatakanaQuiz() {
+  return [
+    {question:"Apa bunyi katakana ini?", prompt:"ア", options:["a","i","u","e"], answer:"a", explanation:"ア dibaca 'a'"},
+    {question:"Apa bunyi katakana ini?", prompt:"イ", options:["a","i","u","e"], answer:"i", explanation:"イ dibaca 'i'"},
+    {question:"Apa bunyi katakana ini?", prompt:"ウ", options:["a","i","u","e"], answer:"u", explanation:"ウ dibaca 'u'"},
+    {question:"Apa bunyi katakana ini?", prompt:"カ", options:["ka","ki","ku","ko"], answer:"ka", explanation:"カ dibaca 'ka'"},
+    {question:"Apa bunyi katakana ini?", prompt:"キ", options:["ka","ki","ku","ko"], answer:"ki", explanation:"キ dibaca 'ki'"},
+    {question:"Apa bunyi katakana ini?", prompt:"シ", options:["sa","si","shi","su"], answer:"shi", explanation:"シ dibaca 'shi' (bukan 'si')"},
+    {question:"Apa bunyi katakana ini?", prompt:"ツ", options:["tsu","chi","te","to"], answer:"tsu", explanation:"ツ dibaca 'tsu'"},
+    {question:"Kata serapan apa ini?", prompt:"コーヒー", options:["teh","kopi","susu","jus"], answer:"kopi", explanation:"コーヒー = coffee = kopi"},
+    {question:"Kata serapan apa ini?", prompt:"テレビ", options:["radio","kamera","televisi","komputer"], answer:"televisi", explanation:"テレビ = television = televisi"},
+    {question:"Kata serapan apa ini?", prompt:"タクシー", options:["bus","kereta","taksi","pesawat"], answer:"taksi", explanation:"タクシー = taxi = taksi"},
+    {question:"Katakana mana yang benar untuk 'no'?", prompt:"", options:["ノ","ネ","ナ","ヌ"], answer:"ノ", explanation:"ノ = no"},
+    {question:"Katakana mana yang benar untuk 'so'?", prompt:"", options:["サ","シ","ス","ソ"], answer:"ソ", explanation:"ソ = so (mirip garis serong dengan titik di atas)"},
+  ];
+}
+
+function buildVocabQuiz() {
+  return [
+    {question:"Apa arti 食べる (taberu)?", prompt:"食べる", options:["minum","makan","tidur","berlari"], answer:"makan", explanation:"食べる (taberu) = makan"},
+    {question:"Apa arti 飲む (nomu)?", prompt:"飲む", options:["makan","minum","beli","lihat"], answer:"minum", explanation:"飲む (nomu) = minum"},
+    {question:"Bagaimana cara baca 今日?", prompt:"今日", options:["ashita","kinou","kyou","ototoi"], answer:"kyou", explanation:"今日 dibaca 'kyou' = hari ini"},
+    {question:"Apa arti 高い (takai)?", prompt:"高い", options:["murah","besar","mahal/tinggi","kecil"], answer:"mahal/tinggi", explanation:"高い (takai) bisa berarti mahal atau tinggi"},
+    {question:"Apa arti 新しい (atarashii)?", prompt:"新しい", options:["lama","baru","bagus","jelek"], answer:"baru", explanation:"新しい (atarashii) = baru"},
+    {question:"Kata mana yang berarti 'membaca'?", prompt:"", options:["書く (kaku)","読む (yomu)","話す (hanasu)","聞く (kiku)"], answer:"読む (yomu)", explanation:"読む (yomu) = membaca"},
+    {question:"Apa arti 安い (yasui)?", prompt:"安い", options:["mahal","murah","besar","baru"], answer:"murah", explanation:"安い (yasui) = murah"},
+    {question:"Bagaimana cara baca 明日?", prompt:"明日", options:["kyou","kinou","ashita","ototoi"], answer:"ashita", explanation:"明日 dibaca 'ashita' = besok"},
+    {question:"Apa arti 仕事 (shigoto)?", prompt:"仕事", options:["rumah","pekerjaan","sekolah","teman"], answer:"pekerjaan", explanation:"仕事 (shigoto) = pekerjaan"},
+    {question:"Kata mana yang berarti 'membeli'?", prompt:"", options:["売る (uru)","買う (kau)","使う (tsukau)","持つ (motsu)"], answer:"買う (kau)", explanation:"買う (kau) = membeli"},
+  ];
+}
+
+function buildKanjiQuiz() {
+  return [
+    {question:"Apa arti kanji ini?", prompt:"人", options:["orang","hari","bulan","tahun"], answer:"orang", explanation:"人 (hito/jin) = orang"},
+    {question:"Apa arti kanji ini?", prompt:"日", options:["bulan","matahari/hari","bintang","langit"], answer:"matahari/hari", explanation:"日 (hi/nichi) = matahari atau hari"},
+    {question:"Apa arti kanji ini?", prompt:"月", options:["matahari","bintang","bulan","tahun"], answer:"bulan", explanation:"月 (tsuki/getsu) = bulan"},
+    {question:"Apa arti kanji ini?", prompt:"大", options:["kecil","besar","tinggi","pendek"], answer:"besar", explanation:"大 (ookii/dai) = besar"},
+    {question:"Apa arti kanji ini?", prompt:"山", options:["sungai","laut","gunung","danau"], answer:"gunung", explanation:"山 (yama/san) = gunung"},
+    {question:"Bagaimana cara baca 日本人?", prompt:"日本人", options:["nihonjin","nihongojin","nihonjou","nipponjin"], answer:"nihonjin", explanation:"日本人 = nihonjin = orang Jepang"},
+    {question:"Apa arti kanji 水?", prompt:"水", options:["api","angin","air","tanah"], answer:"air", explanation:"水 (mizu/sui) = air"},
+    {question:"Apa arti kanji 火?", prompt:"火", options:["air","api","tanah","angin"], answer:"api", explanation:"火 (hi/ka) = api"},
+    {question:"Kanji apa yang berarti 'kecil'?", prompt:"", options:["大","小","高","低"], answer:"小", explanation:"小 (chiisai/shou) = kecil"},
+    {question:"Kanji apa yang berarti 'sungai'?", prompt:"", options:["山","川","木","金"], answer:"川", explanation:"川 (kawa/sen) = sungai"},
+  ];
+}
+
+function buildGrammarQuiz() {
+  return [
+    {question:"Partikel apa yang digunakan untuk menandai objek langsung?", prompt:"わたしは水___飲みます", options:["は","が","を","に"], answer:"を", explanation:"を (wo) menandai objek langsung: 水を飲む (minum air)"},
+    {question:"Partikel apa yang digunakan untuk tujuan tempat?", prompt:"学校___行きます", options:["は","を","が","に"], answer:"に", explanation:"に digunakan untuk menunjukkan tujuan: 学校に行く (pergi ke sekolah)"},
+    {question:"Partikel apa yang menandai topik kalimat?", prompt:"わたし___田中です", options:["が","を","は","に"], answer:"は", explanation:"は (wa) menandai topik kalimat"},
+    {question:"Pilih kalimat yang benar untuk 'Saya makan nasi'", prompt:"", options:["わたしがご飯を食べます","わたしはご飯に食べます","わたしはご飯を食べます","わたしにご飯は食べます"], answer:"わたしはご飯を食べます", explanation:"は untuk topik (わたし), を untuk objek (ご飯)"},
+    {question:"Partikel apa yang digunakan untuk alat/cara?", prompt:"バス___来ました", options:["は","で","に","が"], answer:"で", explanation:"で menunjukkan alat/cara: バスで (dengan bis)"},
+    {question:"Apa arti kalimat: 猫が好きです？", prompt:"猫が好きです", options:["Kucing itu bagus","Saya suka kucing","Kucing itu ada","Itu kucing"], answer:"Saya suka kucing", explanation:"好きです = suka. が digunakan dengan kata sifat perasaan"},
+    {question:"Partikel mana untuk menyatakan lokasi keberadaan?", prompt:"机の上___本があります", options:["は","を","に","で"], answer:"に", explanation:"に digunakan untuk menyatakan keberadaan: 〜にあります"},
+    {question:"Bagaimana cara bertanya 'Di mana toilet?'", prompt:"", options:["トイレはどこですか","トイレをどこですか","どこがトイレ","トイレにどこですか"], answer:"トイレはどこですか", explanation:"Gunakan は untuk topik + どこ (di mana) + ですか"},
+  ];
+}
+
+function buildVocab2Quiz() {
+  return [
+    {question:"Apa arti 会社 (kaisha)?", prompt:"会社", options:["rumah","sekolah","perusahaan","restoran"], answer:"perusahaan", explanation:"会社 (kaisha) = perusahaan / kantor"},
+    {question:"Apa arti 上司 (joushi)?", prompt:"上司", options:["bawahan","rekan kerja","atasan/bos","klien"], answer:"atasan/bos", explanation:"上司 (joushi) = atasan / bos"},
+    {question:"Apa arti 残業 (zangyou)?", prompt:"残業", options:["cuti","lembur","istirahat","liburan"], answer:"lembur", explanation:"残業 (zangyou) = lembur"},
+    {question:"Kapan kamu mengucapkan おつかれさまでした?", prompt:"お疲れ様でした", options:["Saat bertemu pertama kali","Saat pulang kerja/selesai bekerja","Saat makan siang","Saat datang ke kantor"], answer:"Saat pulang kerja/selesai bekerja", explanation:"お疲れ様でした diucapkan saat selesai bekerja atau saat rekan selesai kerja"},
+    {question:"Apa arti 給料 (kyuuryou)?", prompt:"給料", options:["bonus","gaji","tunjangan","pajak"], answer:"gaji", explanation:"給料 (kyuuryou) = gaji"},
+    {question:"Apa arti 会議 (kaigi)?", prompt:"会議", options:["kantor","rapat/meeting","pelatihan","wawancara"], answer:"rapat/meeting", explanation:"会議 (kaigi) = rapat / meeting"},
+    {question:"よろしくお願いします digunakan untuk...?", prompt:"よろしくお願いします", options:["Mengucapkan terima kasih","Memohon bantuan/perkenalan diri","Meminta maaf","Berpamitan"], answer:"Memohon bantuan/perkenalan diri", explanation:"よろしくお願いします = 'mohon bantuannya', sangat umum dipakai"},
+    {question:"Apa arti 連絡 (renraku)?", prompt:"連絡", options:["laporan","konfirmasi","kontak/hubungan","pertemuan"], answer:"kontak/hubungan", explanation:"連絡 (renraku) = kontak, menghubungi"},
+    {question:"Apa arti 同僚 (douryou)?", prompt:"同僚", options:["atasan","bawahan","rekan kerja","klien"], answer:"rekan kerja", explanation:"同僚 (douryou) = rekan kerja / kolega"},
+    {question:"Apa arti 休憩 (kyuukei)?", prompt:"休憩", options:["liburan","cuti","istirahat","pulang"],answer:"istirahat", explanation:"休憩 (kyuukei) = istirahat"},
+  ];
+}
+
+function buildKanji2Quiz() {
+  return [
+    {question:"Apa arti kanji ini?", prompt:"一", options:["satu","dua","tiga","empat"], answer:"satu", explanation:"一 (ichi/hito) = satu"},
+    {question:"Apa arti kanji ini?", prompt:"五", options:["enam","tujuh","lima","delapan"], answer:"lima", explanation:"五 (go/itsu) = lima"},
+    {question:"Apa arti kanji ini?", prompt:"上", options:["bawah","kanan","kiri","atas"], answer:"atas", explanation:"上 (ue/jou) = atas"},
+    {question:"Apa arti kanji ini?", prompt:"下", options:["atas","bawah","depan","belakang"], answer:"bawah", explanation:"下 (shita/ka) = bawah"},
+    {question:"Apa arti kanji ini?", prompt:"左", options:["kanan","atas","kiri","bawah"], answer:"kiri", explanation:"左 (hidari) = kiri"},
+    {question:"Apa arti kanji ini?", prompt:"右", options:["kiri","atas","bawah","kanan"], answer:"kanan", explanation:"右 (migi) = kanan"},
+    {question:"Apa arti kanji ini?", prompt:"前", options:["belakang","kiri","depan","kanan"], answer:"depan", explanation:"前 (mae/zen) = depan"},
+    {question:"Apa arti kanji ini?", prompt:"百", options:["sepuluh","seribu","seratus","sejuta"], answer:"seratus", explanation:"百 (hyaku) = seratus"},
+    {question:"Apa arti kanji ini?", prompt:"千", options:["seratus","sepuluh","sejuta","seribu"], answer:"seribu", explanation:"千 (sen) = seribu"},
+    {question:"Kanji mana yang berarti 'tujuh'?", prompt:"", options:["六","七","八","九"], answer:"七", explanation:"七 (shichi/nana) = tujuh"},
+  ];
+}
+
+// ===== AI SENSEI =====
+async function askSensei() {
+  const input = document.getElementById('askInput').value.trim();
+  if (!input) return;
+  const box = document.getElementById('chatBox');
+  box.style.display = 'block';
+  box.innerHTML = '<span class="chat-thinking">Sensei sedang berpikir<span class="loading-dots"></span></span>';
+
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1000,
+        system: `Kamu adalah guru bahasa Jepang yang ramah dan sabar bernama Sensei. 
+Muridmu adalah orang Indonesia yang sedang belajar bahasa Jepang untuk JFT-Basic pada pertengahan 2027.
+Dia sudah bisa hiragana, sedang belajar katakana, dan sedikit tata bahasa.
+Tujuannya: bekerja di Jepang.
+Berikan penjelasan dalam bahasa Indonesia, tapi sertakan tulisan Jepang (kanji/kana) dan romaji.
+Gunakan contoh yang relevan dengan kehidupan kerja. Singkat, jelas, dan menyemangati.`,
+        messages: [{ role: "user", content: input }]
+      })
+    });
+    const data = await response.json();
+    const text = data.content?.map(c => c.text || '').join('') || 'Maaf, ada masalah. Coba lagi ya!';
+    box.innerHTML = text.replace(/\n/g, '<br>');
+  } catch (e) {
+    box.innerHTML = 'Maaf, Sensei tidak bisa terhubung saat ini. Coba lagi nanti!';
+  }
+}
+
+// ===== INIT =====
+renderHome();
+</script>
+</body>
+</html>
